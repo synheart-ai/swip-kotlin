@@ -36,6 +36,7 @@ class ConsentManagerTest {
         `when`(editor.putInt(anyString(), anyInt())).thenReturn(editor)
         `when`(editor.putLong(anyString(), anyLong())).thenReturn(editor)
         `when`(editor.putString(anyString(), anyString())).thenReturn(editor)
+        `when`(editor.clear()).thenReturn(editor)
         `when`(sharedPreferences.getInt(anyString(), anyInt())).thenReturn(0)
 
         consentManager = ConsentManager(context)

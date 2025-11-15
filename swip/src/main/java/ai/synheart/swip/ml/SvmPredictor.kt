@@ -67,7 +67,7 @@ class SvmPredictor(context: Context? = null) {
 
         // Apply softmax to get probabilities
         val probabilities = softmax(scores.values.toDoubleArray())
-        val probabilityMap = scores.keys.zip(probabilities).toMap()
+        val probabilityMap = scores.keys.zip(probabilities.toList()).toMap()
 
         // Get dominant emotion
         val dominantEmotion = scores.maxByOrNull { it.value }?.key ?: "Unknown"

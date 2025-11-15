@@ -65,7 +65,7 @@ class EmotionEngine(
 
     private fun processBuffer() {
         // Get latest window of data
-        val window = dataBuffer.takeLast(WINDOW_SIZE)
+        val window = dataBuffer.toList().takeLast(WINDOW_SIZE)
 
         // Extract features
         val features = featureExtractor.extract(window)
