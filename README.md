@@ -1,10 +1,10 @@
-# SWIP Android SDK
+# SWIP Android SDK (Kotlin)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Platform](https://img.shields.io/badge/platform-Android-green.svg)](https://developer.android.com)
 [![API](https://img.shields.io/badge/API-21%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=21)
 
-The SWIP Android SDK enables Android applications to quantitatively assess their impact on human wellness using biosignal-based metrics from Health Connect.
+The SWIP Android SDK (written in Kotlin) enables Android applications to quantitatively assess their impact on human wellness using biosignal-based metrics from Health Connect.
 
 ## Features
 
@@ -230,6 +230,8 @@ See `example/` for a complete Android app demonstrating:
 
 ## Architecture
 
+### SDK Components
+
 ```
 SwipSdkManager
     ├── Health Connect (HR/HRV data)
@@ -239,6 +241,19 @@ SwipSdkManager
     ├── SwipEngine (Score computation)
     ├── ConsentManager (Privacy controls)
     └── SessionManager (Session tracking)
+```
+
+### Relationship to swip-core
+
+This SDK currently implements its own scoring logic. In the future, it will integrate with [swip-core-kotlin](../swip-core-kotlin), which is a dedicated library for:
+- HRV feature extraction (SDNN, RMSSD, etc.)
+- Artifact filtering
+- On-device ML inference
+- SWIP score computation (0-100)
+
+The architecture will evolve to:
+```
+Health Connect → synheart-wear-kotlin → swip-core-kotlin → swip-kotlin (this SDK)
 ```
 
 ## Requirements & Compatibility
@@ -287,18 +302,18 @@ This SDK is in active development. The following items should be addressed befor
 
 ## Contributing
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for guidelines.
+See `CONTRIBUTING.md` for guidelines.
 
 ## License
 
 Copyright 2024 Synheart AI
 
-Licensed under the Apache License, Version 2.0. See [LICENSE](../../LICENSE) for details.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
 ## Support
 
-- **Issues**: https://github.com/synheart-ai/swip/issues
-- **Docs**: https://swip.synheart.ai/docs
+- **Issues**: [GitHub Issues](https://github.com/synheart-ai/swip/issues)
+- **Docs**: [SWIP Docs](https://swip.synheart.ai/docs)
 - **Email**: dev@synheart.ai
 
 ## Acknowledgments
@@ -309,4 +324,4 @@ Part of the Synheart Wellness Impact Protocol (SWIP) open standard.
 
 **Author**: Israel Goytom
 
-For detailed production readiness information, see [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md).
+
