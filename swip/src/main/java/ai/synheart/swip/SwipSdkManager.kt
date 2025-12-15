@@ -1,7 +1,6 @@
 package ai.synheart.swip
 
 import ai.synheart.swip.consent.ConsentManager
-import ai.synheart.swip.consent.ConsentLevel
 import ai.synheart.swip.errors.*
 import ai.synheart.swip.ml.EmotionEngine
 import ai.synheart.swip.ml.SwipEngine

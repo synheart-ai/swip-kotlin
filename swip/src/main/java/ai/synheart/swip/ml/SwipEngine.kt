@@ -35,10 +35,14 @@ class SwipEngine(private val config: SwipConfig) {
         // Compute coherence score based on emotion
         val coherenceScore = computeCoherence(emotionProbabilities)
 
-        // Weighted combination
+        // Weighted combination (normalize weights to sum to 1.0)
+        val totalWeight = config.weightHrv + config.weightCoherence
+        val normalizedWeightHrv = config.weightHrv / totalWeight
+        val normalizedWeightCoherence = config.weightCoherence / totalWeight
+        
         val swipScore = (
-            config.weightHrv * hrvScore +
-            config.weightCoherence * coherenceScore
+            normalizedWeightHrv * hrvScore +
+            normalizedWeightCoherence * coherenceScore
         ).coerceIn(0.0, 100.0)
 
         // Compute data quality (simplified - based on HR validity)
