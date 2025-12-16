@@ -11,10 +11,13 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
 rootProject.name = "swip-android"
 include ':swip'
 include ':example'
+include ':swip-core'
+project(':swip-core').projectDir = new File('../swip-core-kotlin')
 

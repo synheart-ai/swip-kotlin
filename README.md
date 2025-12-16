@@ -1,26 +1,24 @@
-# SWIP Android SDK (Kotlin)
+# SWIP Android SDK
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Platform](https://img.shields.io/badge/platform-Android-green.svg)](https://developer.android.com)
 [![API](https://img.shields.io/badge/API-21%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=21)
 
-The SWIP Android SDK (written in Kotlin) enables Android applications to quantitatively assess their impact on human wellness using biosignal-based metrics from Health Connect.
+**Quantify your app's impact on human wellness using real-time biosignals and emotion inference**
 
 ## Features
 
-- ✅ **Privacy-first**: All processing happens locally on-device by default
-- ✅ **Health Connect Integration**: Reads HR and HRV data from Android Health Connect
-- ✅ **Real-time Emotion Recognition**: On-device Linear SVM for emotion classification
-- ✅ **SWIP Score Computation**: Quantitative wellness impact scoring
-- ✅ **Consent Management**: GDPR-compliant consent and data purging
-- ✅ **Kotlin Coroutines**: Modern async/await API
-- ✅ **Flow-based Streaming**: Real-time score and emotion updates
+- **🔒 Privacy-First**: All processing happens locally on-device by default
+- **📱 Biosignal Collection**: Uses synheart-wear-kotlin to read HR and HRV from Health Connect
+- **🧠 Emotion Recognition**: On-device emotion classification from biosignals
+- **📊 SWIP Score**: Quantitative wellness impact scoring (0-100)
+- **🔐 GDPR Compliant**: User consent management and data purging
+- **⚡ Kotlin Coroutines**: Modern async/await API
+- **🔄 Flow Streaming**: Real-time score and emotion updates
 
 ## Installation
 
 ### Gradle
-
-Add to your `build.gradle`:
 
 ```gradle
 dependencies {
@@ -40,9 +38,9 @@ dependencies {
 
 ## Requirements
 
-- **Android SDK**: API 21 (Android 5.0) or higher
+- **Android SDK**: API 21+ (Android 5.0)
 - **Target SDK**: API 34 (Android 14)
-- **Health Connect**: Required for health data access
+- **Health Connect**: Required for biometric data access
 - **Kotlin**: 1.8+
 
 ## Quick Start
@@ -72,23 +70,12 @@ class MyApplication : Application() {
 ### 2. Request Permissions
 
 ```kotlin
-class MainActivity : ComponentActivity() {
-    private lateinit var swipManager: SwipSdkManager
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
-        lifecycleScope.launch {
-            try {
-                // Initialize SDK
-                swipManager.initialize()
-
-                // Request health permissions
-                swipManager.requestPermissions()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to initialize SWIP", e)
-            }
-        }
+lifecycleScope.launch {
+    try {
+        swipManager.initialize()
+        swipManager.requestPermissions()
+    } catch (e: Exception) {
+        Log.e(TAG, "Failed to initialize SWIP", e)
     }
 }
 ```
@@ -97,20 +84,16 @@ class MainActivity : ComponentActivity() {
 
 ```kotlin
 lifecycleScope.launch {
-    try {
-        // Start session
-        val sessionId = swipManager.startSession(
-            appId = "com.example.myapp",
-            metadata = mapOf("screen" to "meditation")
-        )
+    // Start session
+    val sessionId = swipManager.startSession(
+        appId = "com.example.myapp",
+        metadata = mapOf("screen" to "meditation")
+    )
 
-        // Collect scores
-        swipManager.scoreFlow.collect { score ->
-            Log.d(TAG, "SWIP Score: ${score.swipScore}")
-            Log.d(TAG, "Emotion: ${score.dominantEmotion}")
-        }
-    } catch (e: Exception) {
-        Log.e(TAG, "Session error", e)
+    // Collect scores
+    swipManager.scoreFlow.collect { score ->
+        Log.d(TAG, "SWIP Score: ${score.swipScore}")
+        Log.d(TAG, "Emotion: ${score.dominantEmotion}")
     }
 }
 ```
@@ -119,16 +102,11 @@ lifecycleScope.launch {
 
 ```kotlin
 lifecycleScope.launch {
-    try {
-        val results = swipManager.stopSession()
+    val results = swipManager.stopSession()
+    val summary = results.getSummary()
 
-        val summary = results.getSummary()
-        Log.d(TAG, "Session Summary: $summary")
-        Log.d(TAG, "Average Score: ${summary["average_swip_score"]}")
-        Log.d(TAG, "Dominant Emotion: ${summary["dominant_emotion"]}")
-    } catch (e: Exception) {
-        Log.e(TAG, "Failed to stop session", e)
-    }
+    Log.d(TAG, "Average Score: ${summary["average_swip_score"]}")
+    Log.d(TAG, "Dominant Emotion: ${summary["dominant_emotion"]}")
 }
 ```
 
@@ -136,13 +114,11 @@ lifecycleScope.launch {
 
 ### SwipSdkManager
 
-Main SDK entry point.
-
 #### Methods
 
 - `suspend fun initialize()` - Initialize the SDK
 - `suspend fun requestPermissions(): Set<String>` - Request health permissions
-- `suspend fun startSession(appId: String, metadata: Map<String, Any> = emptyMap()): String` - Start a session
+- `suspend fun startSession(appId: String, metadata: Map<String, Any>): String` - Start a session
 - `suspend fun stopSession(): SwipSessionResults` - Stop the current session
 - `fun getCurrentScore(): SwipScoreResult?` - Get current SWIP score
 - `fun getCurrentEmotion(): EmotionResult?` - Get current emotion
@@ -157,38 +133,18 @@ Main SDK entry point.
 
 ### Models
 
-#### SwipScoreResult
-
 ```kotlin
 data class SwipScoreResult(
     val swipScore: Double,           // 0-100 wellness score
-    val dominantEmotion: String,     // "Amused", "Calm", "Stressed"
+    val dominantEmotion: String,     // "Calm", "Stressed", etc.
     val emotionProbabilities: Map<String, Double>,
     val hrv: Double,                 // HRV SDNN in ms
     val heartRate: Double,           // HR in BPM
     val timestamp: Instant,
-    val confidence: Double,          // Prediction confidence
-    val dataQuality: Double          // Signal quality (0-1)
+    val confidence: Double,
+    val dataQuality: Double
 )
-```
 
-#### SwipSessionResults
-
-```kotlin
-data class SwipSessionResults(
-    val sessionId: String,
-    val scores: List<SwipScoreResult>,
-    val emotions: List<EmotionResult>,
-    val startTime: Instant,
-    val endTime: Instant
-) {
-    fun getSummary(): Map<String, Any>
-}
-```
-
-#### ConsentLevel
-
-```kotlin
 enum class ConsentLevel {
     ON_DEVICE,       // Local processing only (default)
     LOCAL_EXPORT,    // Manual export allowed
@@ -196,24 +152,24 @@ enum class ConsentLevel {
 }
 ```
 
-## Privacy & Ethics
+## Architecture
 
-The SWIP SDK follows strict privacy requirements:
+```
+Health Connect → synheart-wear-kotlin → swip-core-kotlin → swip-kotlin
+```
+
+The SDK uses:
+- **synheart-wear-kotlin** for biosignal collection from Health Connect
+- **swip-core-kotlin** for HRV feature extraction and SWIP score computation
+- **Internal emotion engine** for on-device emotion classification
+
+## Privacy
 
 - **Local-first**: All processing happens on-device by default
 - **Explicit Consent**: Required before any data sharing
 - **GDPR Compliance**: `purgeAllData()` deletes all user data
 - **No Raw Biosignals**: Only aggregated metrics transmitted (if consent given)
 - **Anonymization**: Hashed device IDs, per-session UUIDs
-
-## Example App
-
-See `example/` for a complete Android app demonstrating:
-
-- Session management
-- Real-time score visualization
-- Consent UI implementation
-- Data export
 
 ## Testing
 
@@ -228,100 +184,18 @@ See `example/` for a complete Android app demonstrating:
 ./gradlew jacocoTestReport
 ```
 
-## Architecture
-
-### SDK Components
-
-```
-SwipSdkManager
-    ├── Health Connect (HR/HRV data)
-    ├── EmotionEngine (ML inference)
-    │   ├── FeatureExtractor
-    │   └── SvmPredictor
-    ├── SwipEngine (Score computation)
-    ├── ConsentManager (Privacy controls)
-    └── SessionManager (Session tracking)
-```
-
-### Relationship to swip-core
-
-This SDK currently implements its own scoring logic. In the future, it will integrate with [swip-core-kotlin](../swip-core-kotlin), which is a dedicated library for:
-- HRV feature extraction (SDNN, RMSSD, etc.)
-- Artifact filtering
-- On-device ML inference
-- SWIP score computation (0-100)
-
-The architecture will evolve to:
-```
-Health Connect → synheart-wear-kotlin → swip-core-kotlin → swip-kotlin (this SDK)
-```
-
-## Requirements & Compatibility
-
-- **Minimum SDK**: API 21 (Android 5.0 Lollipop)
-- **Target SDK**: API 34 (Android 14)
-- **Kotlin**: 1.8.0+
-- **Coroutines**: 1.7.0+
-- **Health Connect**: 1.1.0+
-
-## Production Readiness
-
-### Current Status
-
-This SDK is in active development. The following items should be addressed before production deployment:
-
-#### ⚠️ Known Issues
-
-1. **Health Connect Integration**: The `readLatestHeartRate()` and `readLatestHRV()` methods in `SwipSdkManager.kt` currently return mock values. These need to be replaced with actual Health Connect API calls to read real health data.
-
-2. **Logging**: The SDK uses `println()` for logging instead of Android's `Log` class. Consider migrating to Android Log or a proper logging framework for better production logging.
-
-3. **Error Handling**: While comprehensive error types exist, ensure all edge cases are properly handled, especially around Health Connect availability and permission states.
-
-4. **Testing**: Ensure comprehensive test coverage, especially for Health Connect integration and edge cases.
-
-#### ✅ Production Ready Features
-
-- ✅ Comprehensive error handling with typed exceptions
-- ✅ GDPR-compliant consent management
-- ✅ ProGuard rules configured
-- ✅ Proper dependency management
-- ✅ Kotlin coroutines for async operations
-- ✅ Flow-based reactive API
-- ✅ Session management
-- ✅ On-device ML inference
-
-### Before Production Deployment
-
-1. **Implement Health Connect Integration**: Replace mock data with actual Health Connect queries
-2. **Add Comprehensive Tests**: Ensure >80% code coverage
-3. **Performance Testing**: Test on various Android devices and API levels
-4. **Security Audit**: Review data handling and storage
-5. **Documentation**: Complete API documentation
-6. **Version Management**: Set up proper versioning strategy
-
-## Contributing
-
-See `CONTRIBUTING.md` for guidelines.
-
 ## License
 
-Copyright 2024 Synheart AI
+Copyright 2025 Synheart AI
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
 ## Support
 
-- **Issues**: [GitHub Issues](https://github.com/synheart-ai/swip/issues)
-- **Docs**: [SWIP Docs](https://swip.synheart.ai/docs)
+- **Issues**: https://github.com/synheart-ai/swip/issues
+- **Docs**: https://swip.synheart.ai/docs
 - **Email**: dev@synheart.ai
-
-## Acknowledgments
-
-Part of the Synheart Wellness Impact Protocol (SWIP) open standard.
 
 ---
 
-**Author**: Israel Goytom
-
-
+Part of the Synheart Wellness Impact Protocol (SWIP) open standard.

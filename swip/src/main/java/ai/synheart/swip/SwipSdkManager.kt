@@ -3,14 +3,17 @@ package ai.synheart.swip
 import ai.synheart.swip.consent.ConsentManager
 import ai.synheart.swip.errors.*
 import ai.synheart.swip.ml.EmotionEngine
-import ai.synheart.swip.ml.SwipEngine
 import ai.synheart.swip.models.*
 import ai.synheart.swip.session.SessionManager
 import android.content.Context
-import androidx.health.connect.client.HealthConnectClient
-import androidx.health.connect.client.permission.HealthPermission
-import androidx.health.connect.client.records.HeartRateRecord
-import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
+import ai.synheart.wear.SynheartWear
+import ai.synheart.wear.config.SynheartWearConfig
+import ai.synheart.wear.models.DeviceAdapter
+import ai.synheart.wear.models.PermissionType
+import ai.synheart.swip.core.SwipEngine
+import ai.synheart.swip.core.PhysiologicalBaseline
+import ai.synheart.swip.core.EmotionSnapshot
+import ai.synheart.swip.core.SwipConfig as CoreSwipConfig
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.time.Instant
@@ -20,7 +23,7 @@ import java.util.UUID
  * SWIP SDK Manager - Main entry point for the Android SDK
  *
  * Integrates:
- * - Health Connect: Reads HR, HRV data
+ * - SynheartWear: Reads HR, HRV data from Health Connect via biosignal collection layer
  * - EmotionEngine: Runs emotion inference models
  * - SwipEngine: Computes SWIP Score
  *
@@ -32,9 +35,24 @@ class SwipSdkManager(
     private val config: SwipSdkConfig = SwipSdkConfig()
 ) {
     // Core components
-    private var healthConnectClient: HealthConnectClient? = null
+    private val synheartWear: SynheartWear = SynheartWear(
+        context = context,
+        config = SynheartWearConfig(
+            enabledAdapters = setOf(DeviceAdapter.HEALTH_CONNECT),
+            enableLocalCaching = false,
+            enableEncryption = true,
+            streamInterval = 1000L // 1 second
+        )
+    )
     private val emotionEngine: EmotionEngine = EmotionEngine(config.emotionConfig, context)
-    private val swipEngine: SwipEngine = SwipEngine(config.swipConfig)
+    private val baseline: PhysiologicalBaseline = PhysiologicalBaseline(
+        restingHr = 70.0,
+        restingHrv = 50.0
+    )
+    private val swipEngine: SwipEngine = SwipEngine(
+        baseline = baseline,
+        config = CoreSwipConfig.Default
+    )
     private val consentManager: ConsentManager = ConsentManager(context)
     private val sessionManager: SessionManager = SessionManager()
 
@@ -68,14 +86,8 @@ class SwipSdkManager(
         if (initialized) return
 
         try {
-            // Check if Health Connect is available
-            val availability = HealthConnectClient.getSdkStatus(context)
-            if (availability != HealthConnectClient.SDK_AVAILABLE) {
-                throw InitializationException("Health Connect not available")
-            }
-
-            // Initialize Health Connect client
-            healthConnectClient = HealthConnectClient.getOrCreate(context)
+            // Initialize SynheartWear SDK
+            synheartWear.initialize()
 
             initialized = true
             log("info", "SWIP SDK initialized")
@@ -95,14 +107,23 @@ class SwipSdkManager(
             throw InvalidConfigurationException("SWIP SDK not initialized")
         }
 
-        val client = healthConnectClient ?: throw InitializationException("Health Connect client not initialized")
+        try {
+            val permissions = setOf(
+                PermissionType.HEART_RATE,
+                PermissionType.HEART_RATE_VARIABILITY
+            )
 
-        val permissions = setOf(
-            HealthPermission.getReadPermission(HeartRateRecord::class),
-            HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class)
-        )
+            val granted = synheartWear.requestPermissions(permissions)
 
-        return client.permissionController.getGrantedPermissions()
+            return granted
+                .filter { it.value }
+                .keys
+                .map { it.name }
+                .toSet()
+        } catch (e: Exception) {
+            log("error", "Failed to request permissions: ${e.message}")
+            throw InitializationException("Failed to request permissions", e)
+        }
     }
 
     /**
@@ -264,25 +285,23 @@ class SwipSdkManager(
     }
 
     private suspend fun processHealthData() {
-        val client = healthConnectClient ?: return
-
         try {
-            // Read heart rate data from Health Connect
-            val now = Instant.now()
-            val fiveSecondsAgo = now.minusSeconds(5)
+            // Read biometric data from SynheartWear
+            val metrics = synheartWear.readMetrics(isRealTime = true)
 
-            // This is a simplified version - real implementation would query Health Connect
-            // and process actual data
-            val hr = readLatestHeartRate(client, fiveSecondsAgo, now)
-            val hrv = readLatestHRV(client, fiveSecondsAgo, now)
+            val hr = metrics.get("hr")
+            val hrv = metrics.get("hrv_sdnn")
+            val motion = metrics.get("motion") ?: 0.0
 
             if (hr != null && hrv != null) {
+                val now = Instant.now()
+
                 // Push to emotion engine
                 emotionEngine.push(
                     hr = hr,
                     hrv = hrv,
                     timestamp = now,
-                    motion = 0.0
+                    motion = motion
                 )
 
                 // Get emotion result if ready
@@ -292,12 +311,27 @@ class SwipSdkManager(
                     sessionEmotions.add(latestEmotion)
                     _emotionFlow.emit(latestEmotion)
 
+                    // Convert EmotionResult to EmotionSnapshot
+                    val arousalScore = when (latestEmotion.emotion.lowercase()) {
+                        "stressed" -> 0.8
+                        "amused", "excited" -> 0.6
+                        "calm", "relaxed" -> 0.2
+                        else -> 0.5
+                    }
+
+                    val emotionSnapshot = EmotionSnapshot(
+                        arousalScore = arousalScore,
+                        state = latestEmotion.emotion,
+                        confidence = latestEmotion.confidence,
+                        warmingUp = false
+                    )
+
                     // Compute SWIP score
                     val swipResult = swipEngine.computeScore(
                         hr = hr,
                         hrv = hrv,
-                        motion = 0.0,
-                        emotionProbabilities = latestEmotion.probabilities
+                        motion = motion,
+                        emotion = emotionSnapshot
                     )
 
                     sessionScores.add(swipResult)
@@ -309,26 +343,6 @@ class SwipSdkManager(
         } catch (e: Exception) {
             log("warn", "Failed to process health data: ${e.message}")
         }
-    }
-
-    private suspend fun readLatestHeartRate(
-        client: HealthConnectClient,
-        startTime: Instant,
-        endTime: Instant
-    ): Double? {
-        // Simplified - real implementation would query Health Connect
-        // For now, return a mock value for demonstration
-        return 75.0
-    }
-
-    private suspend fun readLatestHRV(
-        client: HealthConnectClient,
-        startTime: Instant,
-        endTime: Instant
-    ): Double? {
-        // Simplified - real implementation would query Health Connect
-        // For now, return a mock value for demonstration
-        return 50.0
     }
 
     private fun log(level: String, message: String) {
